@@ -154,53 +154,173 @@ def register_post():
 @app.route("/customers", methods=["GET"])
 # @token_required
 def get_customers():
-    query = "SELECT * FROM customer"
+    table_name = "customer"
+    query = f"SELECT * FROM {table_name}"
 
-    # Delete
-    # customer_id = request.args.get("id", type=int) or request.get_json().get('id')
-    # if customer_id:
-    #     query += f" WHERE id = {customer_id}"
-    
     cur = mysql.connection.cursor()
+
     cur.execute(query)
-    customers = cur.fetchall()
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
     cur.close()
 
-    customers_list = [
-        {
-            "customer_id"   : customer[0],
-            "customer_code" : customer[1],
-            "customer_name" : customer[2],
-            "customer_OtherDetails" : customer[3]
-        }
-        for customer in customers
-    ]
-    return jsonify(customers_list), 200
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
 # ACCESSORIES
 @app.route("/accessories", methods=["GET"])
 def get_accessories():
-    query = "SELECT * FROM accessories"
-    
-    # Reserved
-
+    table_name = "accessories"
+    query = f"SELECT * FROM {table_name}"
 
     cur = mysql.connection.cursor()
+
     cur.execute(query)
-    accessories = cur.fetchall()
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
     cur.close()
 
-    accessories_list = [
-        {
-            "product_id"   : accessory[0],
-            "accessory_name" : accessory[1],
-            "accessories_description" : accessory[2],
-            "other_accessory_details" : accessory[3]
-        }
-        for accessory in accessories
-    ]
-    return jsonify(accessories_list), 200
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+# ACCESSORIES
+@app.route("/customer_orders", methods=["GET"])
+def get_customer_orders():
+    table_name = "customer_orders"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+# CUSTOMER PURCHASES
+@app.route("/customer_purchases", methods=["GET"])
+def get_customer_purchases():
+    table_name = "customer_purchases"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+# DRIVE TYPES
+@app.route("/drive_types", methods=["GET"])
+def get_drive_types():
+    table_name = "drive_types"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+
+@app.route("/games", methods=["GET"])
+def get_games():
+    table_name = "games"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+# PRODUCTS
+@app.route("/products", methods=["GET"])
+def get_products():
+    table_name = "products"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+# PRODUCT TYPES
+@app.route("/product_types", methods=["GET"])
+def get_product_types():
+    table_name = "product_types"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+# PRODUCT TYPES
+@app.route("/users", methods=["GET"])
+def get_users():
+    table_name = "users"
+    query = f"SELECT * FROM {table_name}"
+
+    cur = mysql.connection.cursor()
+
+    cur.execute(query)
+    entries = cur.fetchall()
+
+    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
+    columns = [col[0] for col in cur.fetchall()]
+
+    cur.close()
+
+    # Merge column and entry
+    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
