@@ -205,10 +205,101 @@ def post_customer():
             "message": str(e)
         }), 500
 
+# Update the customer
+@app.route("/customers/<int:customer_id>", methods=["PUT"])
+def update_customer(customer_id):
 
+    # curl -X PUT -H "Content-Type: application/json" -d "{\"customer_name\": \"John Doe\"}" http://localhost:5000/customers/1
 
+    data = request.get_json()
+    customer_code           = data.get("customer_code")
+    customer_name           = data.get("customer_name")
+    customer_other_details  = data.get("customer_other_details")
 
-# ACCESSORIES
+    # Build UPDATE query
+    update_fields = []
+    values = []
+
+    if customer_code:
+        update_fields.append("customer_code = %s")
+        values.append(customer_code)
+
+    if customer_name:
+        update_fields.append("customer_name = %s")
+        values.append(customer_name)
+
+    if customer_other_details:
+        update_fields.append("customer_other_details = %s")
+        values.append(customer_other_details)
+
+    # Validation
+    if not update_fields:
+        return jsonify({
+            "success": False,
+            "message": "No fields provided"
+        }), 400
+
+    values.append(customer_id)
+
+    # Generate UPDATE query
+    query = "UPDATE customer SET " + ", ".join(update_fields) + " WHERE customer_id = %s"
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute(query, values)
+        mysql.connection.commit()
+        affected_rows = cur.rowcount
+        cur.close()
+
+        if affected_rows == 0:
+            return jsonify({
+                "success": False,
+                "message": "Customer not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Customer updated successfully"
+        }), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+# Delete a customer
+@app.route("/customers/<int:customer_id>", methods=["DELETE"])
+def delete_customer(customer_id):
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("DELETE FROM customer WHERE customer_id = %s", (customer_id,))
+        mysql.connection.commit()
+        affected_rows = cur.rowcount
+        cur.close()
+
+        if affected_rows == 0:
+            return jsonify({
+                "success": False,
+                "message": "Customer not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Customer deleted successfully"
+        }), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+# --------------- ACCESSORIES ---------------
+
+# Get data from accessories
 @app.route("/accessories", methods=["GET"])
 def get_accessories():
     table_name = "accessories"
@@ -227,6 +318,7 @@ def get_accessories():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+# Commit to accessories
 @app.route("/accessories", methods=["POST"])
 def post_accessory():
 
@@ -270,9 +362,102 @@ def post_accessory():
             "success": False,
             "message": str(e)
         }), 500
+
+# Update record for accessories
+@app.route("/accessories/<int:product_id>", methods=["PUT"])
+def update_accessory(product_id):
+
+    # curl -X PUT -H "Content-Type: application/json" -d "{\"accessory_name\": \"Gaming Keyboard\"}" http://localhost:5000/accessories/1
+
+    data = request.get_json()
+    accessory_name          = data.get("accessory_name")
+    accessory_description   = data.get("accessory_description")
+    other_accessory_details = data.get("other_accessory_details")
+
+    # Build UPDATE query
+    update_fields = []
+    values = []
+
+    if accessory_name:
+        update_fields.append("accessory_name = %s")
+        values.append(accessory_name)
+
+    if accessory_description:
+        update_fields.append("accessory_description = %s")
+        values.append(accessory_description)
+
+    if other_accessory_details:
+        update_fields.append("other_accessory_details = %s")
+        values.append(other_accessory_details)
+
+    # Validation
+    if not update_fields:
+        return jsonify({
+            "success": False,
+            "message": "No fields provided"
+        }), 400
+
+    values.append(product_id)
+
+    # Generate UPDATE query
+    query = "UPDATE accessories SET " + ", ".join(update_fields) + " WHERE product_id = %s"
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute(query, values)
+        mysql.connection.commit()
+        affected_rows = cur.rowcount
+        cur.close()
+
+        if affected_rows == 0:
+            return jsonify({
+                "success": False,
+                "message": "Accessory not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Accessory updated successfully"
+        }), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+ 
+# Delete record from accessories
+@app.route("/accessories/<int:product_id>", methods=["DELETE"])
+def delete_accessory(product_id):
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("DELETE FROM accessories WHERE product_id = %s", (product_id,))
+        mysql.connection.commit()
+        affected_rows = cur.rowcount
+        cur.close()
+
+        if affected_rows == 0:
+            return jsonify({
+                "success": False,
+                "message": "Accessory not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Accessory deleted successfully"
+        }), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
     
 
-# Add POST for customer_purchase, drive_types, games, products, product_types
+# ---------------
+# 
 
 # CUSTOMER ORDERS
 @app.route("/customer_orders", methods=["GET"])
@@ -682,8 +867,6 @@ def get_users():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
-@app.route("/users", methods=["POST"])
-def get_users():
 
 # WAIT
 if __name__ == "__main__":
