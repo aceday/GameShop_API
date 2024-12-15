@@ -151,6 +151,7 @@ def register_post():
     finally:
         cur.close()
 
+# CUSTOMERS
 @app.route("/customers", methods=["GET"])
 # @token_required
 def get_customers():
@@ -169,6 +170,43 @@ def get_customers():
 
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+@app.route("/customers", methods=["POST"])
+def post_customer():
+    data = request.get_json()
+    customer_code           = data.get("customer_code")
+    customer_name           = data.get("customer_name")
+    customer_other_details  = data.get("customer_other_details")
+
+    # Validate data
+    if not all([customer_code, customer_name, customer_other_details]):
+        return jsonify({
+            "success": False,
+            "message": "All information is required"
+        }), 400
+
+    try:
+
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO customers (customer_code, customer_name, customer_other_details) VALUES (%s, %s, %s)", 
+                    (customer_code, customer_name, customer_other_details))
+        mysql.connection.commit()
+        cur.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Customer created successfully"
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+
 
 # ACCESSORIES
 @app.route("/accessories", methods=["GET"])
@@ -189,7 +227,54 @@ def get_accessories():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
-# ACCESSORIES
+@app.route("/accessories", methods=["POST"])
+def post_accessory():
+
+    # curl -X POST -H "Content-Type: application/json" -d "{\"product_id\": 1, \"accessory_name\": \"Gaming Mouse\", \"accessory_description\": \"Wireless gaming mouse\", \"other_accessory_details\": \"Ergonomic design\"}" http://localhost:5000/accessories
+    
+    data = request.get_json()
+    product_id              = data.get("product_id") 
+    accessory_name          = data.get("accessory_name")
+    accessory_description   = data.get("accessory_description")
+    other_accessory_details = data.get("other_accessory_details")
+
+    # Validation
+    if not all([product_id, accessory_name, accessory_description, other_accessory_details]):
+        return jsonify({
+            "success": False,
+            "message": "All fields are required"
+        }), 400
+
+    # Check product existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Product not found"
+        }), 404
+
+    try:
+        cur.execute("INSERT INTO accessories (product_id, accessory_name, accessory_description, other_accessory_details) VALUES (%s, %s, %s, %s)", 
+                    (product_id, accessory_name, accessory_description, other_accessory_details))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Accessory created successfully"
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+    
+
+
+
+# CUSTOMER ORDERS
 @app.route("/customer_orders", methods=["GET"])
 def get_customer_orders():
     table_name = "customer_orders"
@@ -207,6 +292,55 @@ def get_customer_orders():
 
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+
+@app.route("/customer_orders", methods=["POST"])
+def post_customer_orders():
+    data = request.get_json()
+    date_of_order = data.get("date_of_order")
+    other_order_details = data.get("other_order_details")
+    product_id = data.get("product_id")
+    customer_id = data.get("customer_id")
+
+    # Validation
+    if not all([date_of_order, other_order_details, product_id, customer_id]):
+        return jsonify({
+            "success": False,
+            "message": "All fields are required"
+        }), 400
+
+    # Check product and customer existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Product not found"
+        }), 404
+
+    cur.execute("SELECT customer_id FROM customer WHERE customer_id = %s", (customer_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Customer not found"
+        }), 404
+
+    try:
+        cur.execute("INSERT INTO customer_orders (date_of_order, other_order_details, product_id, customer_id) VALUES (%s, %s, %s, %s)", 
+                    (date_of_order, other_order_details, product_id, customer_id))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Customer order created successfully"
+        }), 201
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
 
 # CUSTOMER PURCHASES
 @app.route("/customer_purchases", methods=["GET"])
@@ -322,5 +456,7 @@ def get_users():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+
+# WAIT
 if __name__ == "__main__":
     app.run(debug=True)
