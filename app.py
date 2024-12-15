@@ -456,7 +456,7 @@ def delete_accessory(product_id):
         }), 500
     
 
-# ---------------
+# --------------- CUSTOM ORDERS  ---------------
 # 
 
 # CUSTOMER ORDERS
@@ -481,6 +481,9 @@ def get_customer_orders():
 
 @app.route("/customer_orders", methods=["POST"])
 def post_customer_orders():
+
+    # curl -X POST -H "Content-Type: application/json" -d "{\"date_of_order\": \"2024-12-16\", \"other_order_details\": \"Urgent delivery\", \"product_id\": 1, \"customer_id\": 1}" http://localhost:5000/customer_orders
+
     data = request.get_json()
     date_of_order = data.get("date_of_order")
     other_order_details = data.get("other_order_details")
@@ -527,9 +530,14 @@ def post_customer_orders():
         }), 500
 
 
-# CUSTOMER PURCHASES
+
+
+#  --------------- CUSTOMER PURCHASES  ---------------
 @app.route("/customer_purchases", methods=["GET"])
 def get_customer_purchases():
+
+    # curl -X GET http://localhost:5000/customer_purchases
+
     table_name = "customer_purchases"
     query = f"SELECT * FROM {table_name}"
 
@@ -546,49 +554,89 @@ def get_customer_purchases():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
-@app.route("/customer_purchases", methods=["POST"])
-def post_customer_purchases():
+# Update a record for customer_purchase
+@app.route("/customer_purchases/<int:customer_id>/<int:product_id>", methods=["PUT"])
+def update_customer_purchase(customer_id, product_id):
 
-    # curl -X POST -H "Content-Type: application/json" -d "{\"date_of_purchase\": \"2024-12-15\", \"other_purchase_details\": \"Cash payment\", \"customer_id\": 1, \"product_id\": 1}" http://localhost:5000/customer_purchases
+    # curl -X PUT -H "Content-Type: application/json" -d "{\"date_of_purchase\": \"2024-12-16\", \"other_purchase_details\": \"Credit card payment\"}" http://localhost:5000/customer_purchases/1/1
 
     data = request.get_json()
     date_of_purchase = data.get("date_of_purchase")
     other_purchase_details = data.get("other_purchase_details")
-    customer_id = data.get("customer_id")  # FOREIGN KEY
-    product_id = data.get("product_id")  # FOREIGN KEY
+
+    # Build UPDATE query
+    update_fields = []
+    values = []
+
+    if date_of_purchase:
+        update_fields.append("date_of_purchase = %s")
+        values.append(date_of_purchase)
+
+    if other_purchase_details:
+        update_fields.append("other_purchase_details = %s")
+        values.append(other_purchase_details)
 
     # Validation
-    if not all([date_of_purchase, other_purchase_details, customer_id, product_id]):
+    if not update_fields:
         return jsonify({
             "success": False,
-            "message": "All fields are required"
+            "message": "No fields provided"
         }), 400
 
-    # Check customer and product existence
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT customer_id FROM customer WHERE customer_id = %s", (customer_id,))
-    if not cur.fetchone():
-        return jsonify({
-            "success": False,
-            "message": "Customer not found"
-        }), 404
+    values.append(customer_id)
+    values.append(product_id)
 
-    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
-    if not cur.fetchone():
-        return jsonify({
-            "success": False,
-            "message": "Product not found"
-        }), 404
+    # Generate UPDATE query
+    query = "UPDATE customer_purchases SET " + ", ".join(update_fields) + " WHERE customer_id = %s AND product_id = %s"
 
     try:
-        cur.execute("INSERT INTO customer_purchases (date_of_purchase, other_purchase_details, customer_id, product_id) VALUES (%s, %s, %s, %s)", 
-                    (date_of_purchase, other_purchase_details, customer_id, product_id))
+        cur = mysql.connection.cursor()
+        cur.execute(query, values)
         mysql.connection.commit()
+        affected_rows = cur.rowcount
         cur.close()
+
+        if affected_rows == 0:
+            return jsonify({
+                "success": False,
+                "message": "Customer purchase not found"
+            }), 404
+
         return jsonify({
             "success": True,
-            "message": "Customer purchase created successfully"
-        }), 201
+            "message": "Customer purchase updated successfully"
+        }), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+# Delete record customer_purchase
+@app.route("/customer_purchases/<int:customer_id>/<int:product_id>", methods=["DELETE"])
+def delete_customer_purchase(customer_id, product_id):
+
+    # curl -X DELETE http://localhost:5000/customer_purchases/1/1
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("DELETE FROM customer_purchases WHERE customer_id = %s AND product_id = %s", (customer_id, product_id))
+        mysql.connection.commit()
+        affected_rows = cur.rowcount
+        cur.close()
+
+        if affected_rows == 0:
+            return jsonify({
+                "success": False,
+                "message": "Customer purchase not found"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Customer purchase deleted successfully"
+        }), 200
     
     except Exception as e:
         mysql.connection.rollback()
@@ -598,8 +646,9 @@ def post_customer_purchases():
         }), 500
 
 
+# --------------- DRIVE TYPES ---------------
 
-# DRIVE TYPES
+# GET from driver_types
 @app.route("/drive_types", methods=["GET"])
 def get_drive_types():
     table_name = "drive_types"
@@ -618,6 +667,7 @@ def get_drive_types():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+# Commit record to driver_types
 @app.route("/drive_types", methods=["POST"])
 def post_drive_types():
 
@@ -661,8 +711,69 @@ def post_drive_types():
             "message": str(e)
         }), 500
 
+# Update record for drive_types
+@app.route("/drive_types/<int:product_id>", methods=["PUT"])
+def update_drive_type(product_id):
 
-# GAMES
+    # curl -X PUT -H "Content-Type: application/json" -d "{\"size\": \"1TB\", \"other_console_details\": \"HDD\"}" http://localhost:5000/drive_types/1
+
+    data = request.get_json()
+    size = data.get("size")
+    other_console_details = data.get("other_console_details")
+
+    # Validation
+    if not data:
+        return jsonify({"success": False, "message": "No data provided"}), 400
+
+    if not all([size, other_console_details]):
+        return jsonify({"success": False, "message": "All fields are required"}), 400
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM drive_types WHERE product_id = %s", (product_id,))
+        drive_type = cur.fetchone()
+
+        if not drive_type:
+            return jsonify({"success": False, "message": "Drive type not found"}), 404
+
+        cur.execute("UPDATE drive_types SET size = %s, other_console_details = %s WHERE product_id = %s", 
+                    (size, other_console_details, product_id))
+        mysql.connection.commit()
+        cur.close()
+
+        return jsonify({"success": True, "message": "Drive type updated successfully"}), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+    
+
+# Delete record driver_types
+@app.route("/drive_types/<int:product_id>", methods=["DELETE"])
+def delete_drive_type(product_id):
+
+    # curl -X DELETE http://localhost:5000/drive_types/1
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT * FROM drive_types WHERE product_id = %s", (product_id,))
+        drive_type = cur.fetchone()
+
+        if not drive_type:
+            return jsonify({"success": False, "message": "Drive type not found"}), 404
+
+        cur.execute("DELETE FROM drive_types WHERE product_id = %s", (product_id,))
+        mysql.connection.commit()
+        cur.close()
+
+        return jsonify({"success": True, "message": "Drive type deleted successfully"}), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# --------------- GAMES ---------------
 @app.route("/games", methods=["GET"])
 def get_games():
     table_name = "games"
@@ -727,9 +838,35 @@ def post_games():
             "message": str(e)
         }), 500
 
+# Delete entry games
+@app.route("/games/<int:product_id>", methods=["DELETE"])
+def delete_game(product_id):
+
+    # curl -X DELETE http://localhost:5000/games/1
+
+    try:
+        cur = mysql.connection.cursor()
+        
+        # Check game existence
+        cur.execute("SELECT * FROM games WHERE product_id = %s", (product_id,))
+        game = cur.fetchone()
+        
+        if not game:
+            return jsonify({"success": False, "message": "Game not found"}), 404
+        
+        cur.execute("DELETE FROM games WHERE product_id = %s", (product_id,))
+        mysql.connection.commit()
+        cur.close()
+
+        return jsonify({"success": True, "message": "Game deleted successfully"}), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
-# PRODUCTS
+
+# --------------- PRODUCTS ---------------
 @app.route("/products", methods=["GET"])
 def get_products():
     table_name = "products"
@@ -791,10 +928,72 @@ def post_products():
             "success": False,
             "message": str(e)
         }), 500
+
+# Update a record for product
+@app.route("/products/<int:product_id>", methods=["PUT"])
+def update_product(product_id):
+
+    # curl -X PUT -H "Content-Type: application/json" -d "{\"product_name\": \"Gaming Laptop Pro\", \"product_description\": \"Upgraded laptop\", \"product_price\": 1299.99, \"product_type_code\": 1}" http://localhost:5000/products/1
+
+    data = request.get_json()
+    product_name = data.get("product_name")
+    product_description = data.get("product_description")
+    product_price = data.get("product_price")
+    product_type_code = data.get("product_type_code")  # FOREIGN KEY
+
+    # Validation
+    if not all([product_name, product_description, product_price, product_type_code]):
+        return jsonify({"success": False, "message": "All fields are required"}), 400
+
+    # Check product existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+    if not cur.fetchone():
+        return jsonify({"success": False, "message": "Product not found"}), 404
+
+    # Check product type existence
+    cur.execute("SELECT product_type_code FROM product_types WHERE product_type_code = %s", (product_type_code,))
+    if not cur.fetchone():
+        return jsonify({"success": False, "message": "Product type not found"}), 404
+
+    try:
+        cur.execute("UPDATE products SET product_name = %s, product_description = %s, product_price = %s, product_type_code = %s WHERE product_id = %s", 
+                    (product_name, product_description, product_price, product_type_code, product_id))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({"success": True, "message": "Product updated successfully"}), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# Delete record for product
+@app.route("/products/<int:product_id>", methods=["DELETE"])
+def delete_product(product_id):
+
+    # curl -X DELETE http://localhost:5000/products/1curl -X DELETE http://localhost:5000/products/1
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+        product = cur.fetchone()
+
+        if not product:
+            return jsonify({"success": False, "message": "Product not found"}), 404
+
+        cur.execute("DELETE FROM products WHERE product_id = %s", (product_id,))
+        mysql.connection.commit()
+        cur.close()
+
+        return jsonify({"success": True, "message": "Product deleted successfully"}), 200
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
     
 
 
-# PRODUCT TYPES
+# --------------- PRODUCT TYPES ---------------
 @app.route("/product_types", methods=["GET"])
 def get_product_types():
     table_name = "product_types"
@@ -846,7 +1045,34 @@ def post_product_types():
             "success": False,
             "message": str(e)
         }), 500
+
+# Update record for product_type
+@app.route("/product_types/<int:product_type_code>", methods=["PUT"])
+def update_product_type(product_type_code):
+    data = request.get_json()
+    product_type = data.get("product_type")
+
+    # Validation
+    if not product_type:
+        return jsonify({"success": False, "message": "Product type is required"}), 400
+
+    # Check product type existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_type_code FROM product_types WHERE product_type_code = %s", (product_type_code,))
+    if not cur.fetchone():
+        return jsonify({"success": False, "message": "Product type not found"}), 404
+
+    try:
+        cur.execute("UPDATE product_types SET product_type = %s WHERE product_type_code = %s", (product_type, product_type_code))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({"success": True, "message": "Product type updated successfully"}), 200
     
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+    
+
 
 # Users
 @app.route("/users", methods=["GET"])
