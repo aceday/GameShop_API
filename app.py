@@ -231,7 +231,7 @@ def get_accessories():
 def post_accessory():
 
     # curl -X POST -H "Content-Type: application/json" -d "{\"product_id\": 1, \"accessory_name\": \"Gaming Mouse\", \"accessory_description\": \"Wireless gaming mouse\", \"other_accessory_details\": \"Ergonomic design\"}" http://localhost:5000/accessories
-    
+
     data = request.get_json()
     product_id              = data.get("product_id") 
     accessory_name          = data.get("accessory_name")
@@ -272,7 +272,7 @@ def post_accessory():
         }), 500
     
 
-
+# Add POST for customer_purchase, drive_types, games, products, product_types
 
 # CUSTOMER ORDERS
 @app.route("/customer_orders", methods=["GET"])
@@ -361,6 +361,59 @@ def get_customer_purchases():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+@app.route("/customer_purchases", methods=["POST"])
+def post_customer_purchases():
+
+    # curl -X POST -H "Content-Type: application/json" -d "{\"date_of_purchase\": \"2024-12-15\", \"other_purchase_details\": \"Cash payment\", \"customer_id\": 1, \"product_id\": 1}" http://localhost:5000/customer_purchases
+
+    data = request.get_json()
+    date_of_purchase = data.get("date_of_purchase")
+    other_purchase_details = data.get("other_purchase_details")
+    customer_id = data.get("customer_id")  # FOREIGN KEY
+    product_id = data.get("product_id")  # FOREIGN KEY
+
+    # Validation
+    if not all([date_of_purchase, other_purchase_details, customer_id, product_id]):
+        return jsonify({
+            "success": False,
+            "message": "All fields are required"
+        }), 400
+
+    # Check customer and product existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT customer_id FROM customer WHERE customer_id = %s", (customer_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Customer not found"
+        }), 404
+
+    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Product not found"
+        }), 404
+
+    try:
+        cur.execute("INSERT INTO customer_purchases (date_of_purchase, other_purchase_details, customer_id, product_id) VALUES (%s, %s, %s, %s)", 
+                    (date_of_purchase, other_purchase_details, customer_id, product_id))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Customer purchase created successfully"
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+
 # DRIVE TYPES
 @app.route("/drive_types", methods=["GET"])
 def get_drive_types():
@@ -380,7 +433,51 @@ def get_drive_types():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+@app.route("/drive_types", methods=["POST"])
+def post_drive_types():
 
+    # curl -X POST -H "Content-Type: application/json" -d '{"product_id": 1, "size": "1TB", "other_console_details": "SSD"}' http://localhost:5000/drive_types
+
+    data = request.get_json()
+    product_id = data.get("product_id")  # FOREIGN KEY
+    size = data.get("size")
+    other_console_details = data.get("other_console_details")
+
+    # Validation
+    if not all([product_id, size, other_console_details]):
+        return jsonify({
+            "success": False,
+            "message": "All fields are required"
+        }), 400
+
+    # Check product existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Product not found"
+        }), 404
+
+    try:
+        cur.execute("INSERT INTO drive_types (product_id, size, other_console_details) VALUES (%s, %s, %s)", 
+                    (product_id, size, other_console_details))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Drive type created successfully"
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+# GAMES
 @app.route("/games", methods=["GET"])
 def get_games():
     table_name = "games"
@@ -398,6 +495,54 @@ def get_games():
 
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+
+@app.route("/games", methods=["POST"])
+def post_games():
+
+    # curl -X POST -H "Content-Type: application/json" -d "{\"product_id\": 1, \"game_name\": \"Fortnite\", \"memory_required\": \"8GB\", \"number_of_players\": 4, \"other_game_details\": \"Multiplayer\"}" http://localhost:5000/games
+
+    data = request.get_json()
+    product_id = data.get("product_id")  # FOREIGN KEY
+    game_name = data.get("game_name")
+    memory_required = data.get("memory_required")
+    number_of_players = data.get("number_of_players")
+    other_game_details = data.get("other_game_details")
+
+    # Validation
+    if not all([product_id, game_name, memory_required, number_of_players, other_game_details]):
+        return jsonify({
+            "success": False,
+            "message": "All fields are required"
+        }), 400
+
+    # Check product existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_id FROM products WHERE product_id = %s", (product_id,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Product not found"
+        }), 404
+
+    try:
+        cur.execute("INSERT INTO games (product_id, game_name, memory_required, number_of_players, other_game_details) VALUES (%s, %s, %s, %s, %s)", 
+                    (product_id, game_name, memory_required, number_of_players, other_game_details))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Game created successfully"
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
 
 # PRODUCTS
 @app.route("/products", methods=["GET"])
@@ -418,6 +563,52 @@ def get_products():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+@app.route("/products", methods=["POST"])
+def post_products():
+
+    # curl -X POST -H "Content-Type: application/json" -d "{\"product_name\": \"Gaming Laptop\", \"product_description\": \"High-performance laptop\", \"product_price\": 999.99, \"product_type_code\": 1}" http://localhost:5000/products
+    
+    data = request.get_json()
+    product_name = data.get("product_name")
+    product_description = data.get("product_description")
+    product_price = data.get("product_price")
+    product_type_code = data.get("product_type_code")  # FOREIGN KEY
+
+    # Validation
+    if not all([product_name, product_description, product_price, product_type_code]):
+        return jsonify({
+            "success": False,
+            "message": "All fields are required"
+        }), 400
+
+    # Check product type existence
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT product_type_code FROM product_types WHERE product_type_code = %s", (product_type_code,))
+    if not cur.fetchone():
+        return jsonify({
+            "success": False,
+            "message": "Product type not found"
+        }), 404
+
+    try:
+        cur.execute("INSERT INTO products (product_name, product_description, product_price, product_type_code) VALUES (%s, %s, %s, %s)", 
+                    (product_name, product_description, product_price, product_type_code))
+        mysql.connection.commit()
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Product created successfully"
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+    
+
+
 # PRODUCT TYPES
 @app.route("/product_types", methods=["GET"])
 def get_product_types():
@@ -437,7 +628,42 @@ def get_product_types():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
-# PRODUCT TYPES
+@app.route("/product_types", methods=["POST"])
+def post_product_types():
+
+    # curl -X POST -H "Content-Type: application/json" -d "{\"product_type\": \"Gaming Laptop\"}" http://localhost:5000/product_types
+
+    data = request.get_json()
+    product_type = data.get("product_type")
+
+    # Validation
+    if not product_type:
+        return jsonify({
+            "success": False,
+            "message": "Product type is required"
+        }), 400
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("INSERT INTO product_types (product_type) VALUES (%s)", (product_type,))
+        mysql.connection.commit()
+        product_type_code = cur.lastrowid
+        cur.close()
+        return jsonify({
+            "success": True,
+            "message": "Product type created successfully",
+            "product_type_code": product_type_code
+        }), 201
+    
+    except Exception as e:
+        mysql.connection.rollback()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+    
+
+# Users
 @app.route("/users", methods=["GET"])
 def get_users():
     table_name = "users"
@@ -456,6 +682,8 @@ def get_users():
     # Merge column and entry
     return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
 
+@app.route("/users", methods=["POST"])
+def get_users():
 
 # WAIT
 if __name__ == "__main__":
