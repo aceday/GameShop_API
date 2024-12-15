@@ -20,6 +20,25 @@ app.config["SECRET_KEY"] = "marc123"
 mysql = MySQL(app)
 auth = HTTPBasicAuth()
 
+def token_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        token = request.headers.get("Authorization")
+
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+
+        try:
+            decoded_token = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+            request.username = decoded_token["username"]
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        return f(*args, **kwargs)
+    return wrapper
+
 @app.errorhandler(404)
 def page_not_found(e):
     return "NOT FOUND :P", 404
@@ -132,7 +151,57 @@ def register_post():
     finally:
         cur.close()
 
-# Token
+@app.route("/customers", methods=["GET"])
+# @token_required
+def get_customers():
+    query = "SELECT * FROM customer"
+
+    # Delete
+    # customer_id = request.args.get("id", type=int) or request.get_json().get('id')
+    # if customer_id:
+    #     query += f" WHERE id = {customer_id}"
+    
+    cur = mysql.connection.cursor()
+    cur.execute(query)
+    customers = cur.fetchall()
+    cur.close()
+
+    customers_list = [
+        {
+            "customer_id"   : customer[0],
+            "customer_code" : customer[1],
+            "customer_name" : customer[2],
+            "customer_OtherDetails" : customer[3]
+        }
+        for customer in customers
+    ]
+    return jsonify(customers_list), 200
+
+# ACCESSORIES
+@app.route("/accessories", methods=["GET"])
+def get_accessories():
+    query = "SELECT * FROM accessories"
+
+    # Delete
+    # customer_id = request.args.get("id", type=int) or request.get_json().get('id')
+    # if customer_id:
+    #     query += f" WHERE id = {customer_id}"
+    
+    cur = mysql.connection.cursor()
+    cur.execute(query)
+    customers = cur.fetchall()
+    cur.close()
+
+    accessories_list = [
+        {
+            "product_id"   : accessory[0],
+            "accessory_name" : accessory[1],
+            "accessories_description" : accessory[2],
+            "other_accessory_details" : accessory[3]
+        }
+        for accessory in accessories_list
+    ]
+    return jsonify(accessories_list), 200
 
 
 if __name__ == "__main__":
