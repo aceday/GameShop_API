@@ -181,15 +181,13 @@ def get_customers():
 @app.route("/accessories", methods=["GET"])
 def get_accessories():
     query = "SELECT * FROM accessories"
-
-    # Delete
-    # customer_id = request.args.get("id", type=int) or request.get_json().get('id')
-    # if customer_id:
-    #     query += f" WHERE id = {customer_id}"
     
+    # Reserved
+
+
     cur = mysql.connection.cursor()
     cur.execute(query)
-    customers = cur.fetchall()
+    accessories = cur.fetchall()
     cur.close()
 
     accessories_list = [
@@ -199,7 +197,7 @@ def get_accessories():
             "accessories_description" : accessory[2],
             "other_accessory_details" : accessory[3]
         }
-        for accessory in accessories_list
+        for accessory in accessories
     ]
     return jsonify(accessories_list), 200
 
