@@ -48,258 +48,159 @@ def hello_world():
 
 # SECTION: LOGIN DATA
 @app.route("/login", methods=["POST"])
-def login_post():
-
-    # curl -X POST localhost:5000/login -H "Content-Type: application/json" -d "{\"username\":\"your_username\",\"password\":\"your_password\"}"
-
+def login():
     data = request.json
-
-    # Fetch username and password
-    # Validate input
     username = data.get("username")
     password = data.get("password")
-
-    # Validate input
-    if not username or not password:
+    
+    if not (username and password):
         return jsonify({"success": False, "message": "Username and Password Required"}), 400
+    
+    try:
+        with mysql.connection.cursor() as cur:
+            cur.execute("SELECT username, passwd, role_id FROM users WHERE username = %s", (username,))
+            user_auth = cur.fetchone()
+            
+            if user_auth and check_password_hash(user_auth[1], password):
+                token = jwt.encode({
+                    "username": username,
+                    "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+                }, app.config["SECRET_KEY"], algorithm="HS256")
+                
+                return jsonify({
+                    "success": True,
+                    "message": "Logged In Successfully",
+                    "token": token
+                }), 200
+            
+            return jsonify({"success": False, "message": "Invalid Username or Password"}), 401
+    
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
-    # Query user data
-    cur = mysql.connection.cursor()
-    cur.execute("""SELECT 
-                        username,
-                        passwd,
-                        role_id
-                    FROM users 
-                    WHERE username = %s""",
-                    (username,))
-
-    user_auth = cur.fetchone()
-
-    # Check authentication
-    if user_auth and check_password_hash(user_auth[1], password):
-        
-        token = jwt.encode({
-            "username": username,
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        }, app.config["SECRET_KEY"], algorithm="HS256")
-        
-        cur.execute("""UPDATE users
-                    SET token_id = %s
-                    WHERE username = %s""",
-                    (token, username))
-        
-        mysql.connection.commit()
-
-        return jsonify({
-            "success": True,
-            "message": "Logged In Successfully",
-            "token": token,
-            "data": user_auth
-        }), 200
-    else:
-        return jsonify({
-            "success": False,
-            "message": "Invalid Username or Password"
-        }), 401
-
-@app.route("/protected", methods=["GET"])
+# Test Token
+@app.route("/checker", methods=["GET"])
 @token_required
-def protected_route():
-    return jsonify({"message": f"Hello, {request.username}!"})
+def checker_route():
+    return jsonify({"message": f"Hello my friend {request.username}!"})
 
 
 # SECTION: CREATE AN USER ACCOUNT
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    if request.method == "GET":
-        return jsonify({"message": "You need to query it :P"})
-
-    elif request.method == "POST":
-        data = request.json
-        username = data.get("username")
-        password = data.get("password")
-
-        if not username or not password:
+@app.route("/register", methods=["POST", "GET"])
+def manage_register():
+    default_role_id = 1
+    if request.method == "POST":
+        data = request.get_json()
+        username, password = data.get("username"), data.get("password")
+        if not (username and password): 
             return jsonify({"success": False, "message": "Username and password are required"}), 401
-
         try:
-            cur = mysql.connection.cursor()
-            cur.execute("SELECT username FROM users WHERE username = %s", (username,))
-            
-            if cur.fetchone():
-                return jsonify({"success": False, "message": "Username already exists"}), 409
-
-            role_id = 1  # Default role_id
-            password_enc = generate_password_hash(password)
-            
-            cur.execute("INSERT INTO users (username, passwd, role_id) VALUES (%s, %s, %s)", (username, password_enc, role_id))
-            mysql.connection.commit()
-            
-            return jsonify({"success": True, "message": "Account created successfully"}), 201
-        
+            with mysql.connection.cursor() as cur:
+                if cur.execute("SELECT 1 FROM users WHERE username = %s", (username,)) and cur.fetchone():
+                    return jsonify({"success": False, "message": "Username already exists"}), 409
+                cur.execute("INSERT INTO users (username, passwd, role_id)VALUES (%s, %s, %s)", (username, generate_password_hash(password), default_role_id))
+                mysql.connection.commit()
+                return jsonify({"success": True, "message": "Account created successfully"}), 201
         except Exception as e:
             mysql.connection.rollback()
             return jsonify({"success": False, "message": str(e)}), 409
-        finally:
-            cur.close()
+    elif request.method == "GET":
+        return jsonify({
+            "message": "You want to GET request for register?, use POST.",
+            "success": False
+        }), 405
 
 # CUSTOMERS
-@app.route("/customers", methods=["GET"])
-def get_customers():
-
-    # curl -X GET localhost:5000/register
-
+@app.route("/customers", methods=["GET", "POST"])
+@app.route("/customers/<int:id>", methods=["GET", "PUT", "DELETE"])
+def manage_customers(id=None):
     table_name = "customer"
-    query = f"SELECT * FROM {table_name}"
-
-    cur = mysql.connection.cursor()
-
-    cur.execute(query)
-    entries = cur.fetchall()
-
-    cur.execute(f"SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{table_name}'")
-    columns = [col[0] for col in cur.fetchall()]
-
-    cur.close()
-
-    # Merge column and entry
-    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
-
-@app.route("/customers", methods=["POST"])
-@token_required
-def post_customer():
-
-    # curl -X POST localhost:5000/customers -H "Authorization: Bearer your_token" -H "Content-Type: application/json" -d "{\"customer_code\":\"your_code\",\"customer_name\":\"Your Name\",\"customer_other_details\":\"Additional Details\"}"
-
-    data = request.get_json()
-    customer_code           = data.get("customer_code")
-    customer_name           = data.get("customer_name")
-    customer_other_details  = data.get("customer_other_details")
-
-    # Validate data
-    if not all([customer_code, customer_name, customer_other_details]):
-        return jsonify({
-            "success": False,
-            "message": "All information is required"
-        }), 400
-
-    try:
-
-        cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO customer (customer_code, customer_name, customer_OtherDetails) VALUES (%s, %s, %s)", 
-                    (customer_code, customer_name, customer_other_details))
-        mysql.connection.commit()
-        cur.close()
-
-        return jsonify({
-            "success": True,
-            "message": "Customer created successfully"
-        }), 201
     
-    except Exception as e:
-        mysql.connection.rollback()
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
-
-# Update the customer
-@app.route("/customers/<int:customer_id>", methods=["PUT"])
-@token_required
-def update_customer(customer_id):
-
-    # curl -X PUT -H "Content-Type: application/json" -d "{\"customer_name\": \"John Doe\"}" http://localhost:5000/customers/1
-
-    data = request.get_json()
-    customer_code           = data.get("customer_code")
-    customer_name           = data.get("customer_name")
-    customer_other_details  = data.get("customer_other_details")
-
-    # Build UPDATE query
-    update_fields = []
-    values = []
-
-    if customer_code:
-        update_fields.append("customer_code = %s")
-        values.append(customer_code)
-
-    if customer_name:
-        update_fields.append("customer_name = %s")
-        values.append(customer_name)
-
-    if customer_other_details:
-        update_fields.append("customer_other_details = %s")
-        values.append(customer_other_details)
-
-    # Validation
-    if not update_fields:
-        return jsonify({
-            "success": False,
-            "message": "No fields provided"
-        }), 400
-
-    values.append(customer_id)
-
-    # Generate UPDATE query
-    query = "UPDATE customer SET " + ", ".join(update_fields) + " WHERE customer_id = %s"
-
-    try:
-        cur = mysql.connection.cursor()
-        cur.execute(query, values)
-        mysql.connection.commit()
-        affected_rows = cur.rowcount
-        cur.close()
-
-        if affected_rows == 0:
-            return jsonify({
-                "success": False,
-                "message": "Customer not found"
-            }), 404
-
-        return jsonify({
-            "success": True,
-            "message": "Customer updated successfully"
-        }), 200
+    # @token_required
+    def handle_protected_methods():
+        if request.method == "POST":
+            # Create customer
+            data = request.get_json()
+            customer_code, customer_name  = data.get("customer_code"), data.get("customer_name")
+            customer_other_details = data.get("customer_other_details")
+            if not all([customer_code, customer_name, customer_other_details]):
+                return jsonify({"success": False, "message": "All information is required"}), 400
+            try:
+                with mysql.connection.cursor() as cur:
+                    cur.execute("INSERT INTO customer VALUES (NULL, %s, %s, %s)", 
+                                (customer_code, customer_name, customer_other_details))
+                    mysql.connection.commit()
+                    return jsonify({"success": True, "message": "Customer created successfully"}), 201  
+            except Exception as e:
+                mysql.connection.rollback()
+                return jsonify({"success": False, "message": str(e)}), 500
+        
+        elif request.method == "PUT": 
+            # Update customer
+            data = request.get_json()
+            customer_code = data.get("customer_code")
+            customer_name = data.get("customer_name")
+            customer_other_details = data.get("customer_other_details")
+            update_fields = []
+            values = []
+            if customer_code:
+                update_fields.append("customer_code = %s")
+                values.append(customer_code)
+            if customer_name:
+                update_fields.append("customer_name = %s")
+                values.append(customer_name)
+            if customer_other_details:
+                update_fields.append("customer_OtherDetails = %s")
+                values.append(customer_other_details)
+            if not update_fields:
+                return jsonify({"success": False, "message": "No fields provided"}), 400
+            values.append(id)
+            query = "UPDATE customer SET " + ", ".join(update_fields) + " WHERE customer_id = %s"
+            try:
+                with mysql.connection.cursor() as cur:
+                    cur.execute(query, values)
+                    mysql.connection.commit()
+                    affected_rows = cur.rowcount
+                    if affected_rows == 0:
+                        return jsonify({"success": False, "message": "Customer not found"}), 404
+                    return jsonify({"success": True, "message": "Customer updated successfully"}), 200
+            except Exception as e:
+                mysql.connection.rollback()
+                return jsonify({"success": False, "message": str(e)}), 500
+        
+        elif request.method == "DELETE": 
+            # Delete customer
+            try:
+                with mysql.connection.cursor() as cur:
+                    cur.execute("DELETE FROM customer WHERE customer_id = %s", (id,))
+                    mysql.connection.commit()
+                    affected_rows = cur.rowcount
+                    if affected_rows == 0:
+                        return jsonify({"success": False, "message": "Customer not found"}), 404
+                    return jsonify({"success": True, "message": "Customer deleted successfully"}), 200
+            except Exception as e:
+                mysql.connection.rollback()
+                return jsonify({"success": False, "message": str(e)}), 500
     
-    except Exception as e:
-        mysql.connection.rollback()
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
-
-# Delete a customer
-@app.route("/customers/<int:customer_id>", methods=["DELETE"])
-@token_required
-def delete_customer(customer_id):
-
-    # curl -X DELETE "localhost:5000/customers/your_id" -H "Authorization: Bearer your_token"
-
-    try:
-        cur = mysql.connection.cursor()
-        cur.execute("DELETE FROM customer WHERE customer_id = %s", (customer_id,))
-        mysql.connection.commit()
-        affected_rows = cur.rowcount
-        cur.close()
-
-        if affected_rows == 0:
-            return jsonify({
-                "success": False,
-                "message": "Customer not found"
-            }), 404
-
-        return jsonify({
-            "success": True,
-            "message": "Customer deleted successfully"
-        }), 200
-    
-    except Exception as e:
-        mysql.connection.rollback()
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+    if request.method not in ["GET"]:
+        return handle_protected_methods()
+    else:
+        try:
+            if id:
+                cur = mysql.connection.cursor()
+                cur.execute(f"SELECT * FROM {table_name} WHERE customer_id = %s", (id,))
+                entry = cur.fetchone()
+                if not entry:
+                    return jsonify({"success": False, "message": "Customer not found"}), 404
+                return jsonify(dict(zip([col[0] for col in cur.description], entry))), 200
+            else:
+                cur = mysql.connection.cursor()
+                cur.execute(f"SELECT * FROM {table_name}")
+                entries = cur.fetchall()
+                columns = [col[0] for col in cur.description]
+                return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+        except Exception as e:
+            return jsonify({"success": False, "message": str(e)}), 500
 
 
 # --------------- CUSTOM ORDERS  ---------------
