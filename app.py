@@ -9,7 +9,7 @@ from functools import wraps
 
 app = Flask(__name__)
 
-app.config["MYSQL_HOST"] = "192.168.1.139"
+app.config["MYSQL_HOST"] = "192.168.1.150"
 app.config["MYSQL_USER"] = "root"
 app.config["MYSQL_PASSWORD"] = "root"
 app.config["MYSQL_DB"] = "gameshop"
@@ -46,6 +46,13 @@ def hello_world():
     with open("index.html", "r") as f:
         return f.read()
 
+# Test Token
+@app.route("/checker", methods=["GET"])
+@token_required
+def checker_route():
+    return jsonify({"message": f"Hello my friend {request.username}!"})
+
+
 # SECTION: LOGIN DATA
 @app.route("/login", methods=["POST"])
 def login():
@@ -77,12 +84,6 @@ def login():
     
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
-
-# Test Token
-@app.route("/checker", methods=["GET"])
-@token_required
-def checker_route():
-    return jsonify({"message": f"Hello my friend {request.username}!"})
 
 
 # SECTION: CREATE AN USER ACCOUNT
@@ -116,7 +117,7 @@ def manage_register():
 def manage_customers(id=None):
     table_name = "customer"
     
-    # @token_required
+    @token_required
     def modifier():
         if request.method == "POST":
             # Create customer
@@ -127,7 +128,7 @@ def manage_customers(id=None):
                 return jsonify({"success": False, "message": "All information is required"}), 400
             try:
                 with mysql.connection.cursor() as cur:
-                    cur.execute("INSERT INTO customer VALUES (NULL, %s, %s, %s)", 
+                    cur.execute("INSERT INTO customer (customer_code, customer_name, customer_OtherDetails) VALUES (%s, %s, %s)", 
                                 (customer_code, customer_name, customer_other_details))
                     mysql.connection.commit()
                     return jsonify({"success": True, "message": "Customer created successfully"}), 201  
@@ -155,7 +156,7 @@ def manage_customers(id=None):
             if not update_fields:
                 return jsonify({"success": False, "message": "No fields provided"}), 400
             values.append(id)
-            query = "UPDATE customer SET " + ", ".join(update_fields) + " WHERE customer_id = %s"
+            query = f"UPDATE {table_name} SET " + ", ".join(update_fields) + " WHERE customer_id = %s"
             try:
                 with mysql.connection.cursor() as cur:
                     cur.execute(query, values)
@@ -172,7 +173,7 @@ def manage_customers(id=None):
             # Delete customer
             try:
                 with mysql.connection.cursor() as cur:
-                    cur.execute("DELETE FROM customer WHERE customer_id = %s", (id,))
+                    cur.execute(f"DELETE FROM {table_name} WHERE customer_id = %s", (id,))
                     mysql.connection.commit()
                     affected_rows = cur.rowcount
                     if affected_rows == 0:
@@ -195,19 +196,26 @@ def manage_customers(id=None):
                 cur = mysql.connection.cursor()
                 cur.execute(f"SELECT * FROM {table_name}")
                 entries = cur.fetchall()
-                columns = [col[0] for col in cur.description]
-                return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+                if len(entries) > 0:
+                    columns = [col[0] for col in cur.description]
+                    return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+                else:
+                    return jsonify({
+                        "message" : f"No {table_name} content",
+                    }), 404
         except Exception as e:
             return jsonify({"success": False, "message": str(e)}), 500
 
 
 # --------------- CUSTOM ORDERS  ---------------
-# 
 
 # CUSTOMER ORDERS
 @app.route("/customer_orders", methods=["POST", "GET"])
 @app.route("/customer_orders/<int:order_id>", methods=["GET", "PUT", "DELETE"])
 def manage_customer_orders(order_id=None):
+    table_name = "customer_orders"
+    product_table = "products"
+    customer_table = "customer"
     @token_required
     def modifier():
         if request.method == "POST":
@@ -218,16 +226,16 @@ def manage_customer_orders(order_id=None):
                 return jsonify({"success": False, "message": "All fields are required"}), 400
 
             cur = mysql.connection.cursor()
-            cur.execute("SELECT product_id FROM products WHERE product_id = %s", (data["product_id"],))
+            cur.execute(f"SELECT product_id FROM {product_table} WHERE product_id = %s", (data["product_id"],))
             if not cur.fetchone():
                 return jsonify({"success": False, "message": "Product not found"}), 404
 
-            cur.execute("SELECT customer_id FROM customer WHERE customer_id = %s", (data["customer_id"],))
+            cur.execute(f"SELECT customer_id FROM {customer_table} WHERE customer_id = %s", (data["customer_id"],))
             if not cur.fetchone():
                 return jsonify({"success": False, "message": "Customer not found"}), 404
 
             try:
-                cur.execute("INSERT INTO customer_orders (date_of_order, other_order_details, product_id, customer_id) VALUES (%s, %s, %s, %s)", 
+                cur.execute(f"INSERT INTO {table_name} (date_of_order, other_order_details, product_id, customer_id) VALUES (%s, %s, %s, %s)", 
                             (data["date_of_order"], data["other_order_details"], data["product_id"], data["customer_id"]))
                 mysql.connection.commit()
                 cur.close()
@@ -244,20 +252,20 @@ def manage_customer_orders(order_id=None):
                 return jsonify({"success": False, "message": "All fields are required"}), 400
 
             cur = mysql.connection.cursor()
-            cur.execute("SELECT order_id FROM customer_orders WHERE order_id = %s", (order_id,))
+            cur.execute(f"SELECT order_id FROM {table_name} WHERE order_id = %s", (order_id,))
             if not cur.fetchone():
                 return jsonify({"success": False, "message": "Order not found"}), 404
 
-            cur.execute("SELECT product_id FROM products WHERE product_id = %s", (data["product_id"],))
-            if not cur.fetchone():
-                return jsonify({"success": False, "message": "Product not found"}), 404
-
-            cur.execute("SELECT customer_id FROM customer WHERE customer_id = %s", (data["customer_id"],))
+            cur.execute(f"SELECT customer_id FROM {customer_table} WHERE customer_id = %s", (data["customer_id"],))
             if not cur.fetchone():
                 return jsonify({"success": False, "message": "Customer not found"}), 404
 
+            cur.execute(f"SELECT product_id FROM {product_table} WHERE product_id = %s", (data["product_id"],))
+            if not cur.fetchone():
+                return jsonify({"success": False, "message": "Product not found"}), 404
+
             try:
-                cur.execute("UPDATE customer_orders SET date_of_order = %s, other_order_details = %s, product_id = %s, customer_id = %s WHERE order_id = %s",
+                cur.execute(f"UPDATE {table_name} SET date_of_order = %s, other_order_details = %s, product_id = %s, customer_id = %s WHERE order_id = %s",
                             (data["date_of_order"], data["other_order_details"], data["product_id"], data["customer_id"], order_id))
                 mysql.connection.commit()
                 cur.close()
@@ -270,11 +278,11 @@ def manage_customer_orders(order_id=None):
             # Delete customer order
             try:
                 cur = mysql.connection.cursor()
-                cur.execute("SELECT order_id FROM customer_orders WHERE order_id = %s", (order_id,))
+                cur.execute(f"SELECT order_id FROM {table_name} WHERE order_id = %s", (order_id,))
                 if not cur.fetchone():
                     return jsonify({"success": False, "message": "Order not found"}), 404
 
-                cur.execute("DELETE FROM customer_orders WHERE order_id = %s", (order_id,))
+                cur.execute(f"DELETE FROM {table_name} WHERE order_id = %s", (order_id,))
                 mysql.connection.commit()
                 cur.close()
                 return jsonify({"success": True, "message": "Customer order deleted successfully"}), 200
@@ -286,24 +294,138 @@ def manage_customer_orders(order_id=None):
     else:
         if order_id:
             cur = mysql.connection.cursor()
-            cur.execute("SELECT * FROM customer_orders WHERE order_id = %s", (order_id,))
+            cur.execute(f"SELECT * FROM {table_name} WHERE order_id = %s", (order_id,))
             entry = cur.fetchone()
             if not entry: return jsonify({"success": False, "message": "Order not found"}), 404
             columns = [col[0] for col in cur.description]
             return jsonify(dict(zip(columns, entry))), 200
         else:
             cur = mysql.connection.cursor()
-            cur.execute("SELECT * FROM customer_orders")
+            cur.execute(f"SELECT * FROM {table_name}")
             entries = cur.fetchall()
             columns = [col[0] for col in cur.description]
             return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
+# --------------- CUSTOM PURCHASES  ---------------
+
+@app.route("/customer_purchases", methods=["GET", "POST"])
+@app.route("/customer_purchases/<int:customer_purchase_id>", methods=["GET", "PUT", "DELETE"])
+def manage_customer_purchases(customer_purchase_id=None):
+    table_name = "customer_purchases"
+    customer_table = "customer"
+
+    @token_required
+    def modifier():
+        if request.method == "POST":
+            # Create new customer purchase
+            data = request.get_json()
+            required_fields = ["customer_id", "product_id", "date_of_purchase"]
+            if not all(field in data for field in required_fields):
+                return jsonify({"success": False, "message": "Missing required fields"}), 400
+            
+            # Validate customer ID
+            cur = mysql.connection.cursor()
+            cur.execute(f"SELECT * FROM {customer_table} WHERE customer_id = %s", (data["customer_id"],))
+            if not cur.fetchone():
+                return jsonify({"success": False, "message": "Customer ID does not exist"}), 400
+
+            query = """
+                INSERT INTO customer_purchases (customer_id, product_id, date_of_purchase, other_purchase_details)
+                VALUES (%s, %s, %s, %s)
+            """
+            values = (data["customer_id"], data["product_id"], data["date_of_purchase"], data.get("other_purchase_details"))
+
+            try:
+                cur.execute(query, values)
+                mysql.connection.commit()
+                cur.close()
+                return jsonify({"success": True, "message": "Customer purchase added successfully"}), 201
+            except Exception as e:
+                mysql.connection.rollback()
+                return jsonify({"success": False, "message": str(e)}), 500
+
+        elif request.method == "PUT":
+            # Update customer purchase
+            data = request.get_json()
+            update_fields = []
+            values = []
+
+            if "date_of_purchase" in data:
+                update_fields.append("date_of_purchase = %s")
+                values.append(data["date_of_purchase"])
+
+            if "other_purchase_details" in data:
+                update_fields.append("other_purchase_details = %s")
+                values.append(data["other_purchase_details"])
+
+            if not update_fields:
+                return jsonify({"success": False, "message": "No fields provided"}), 400
+
+            values.append(customer_purchase_id)
+
+            query = "UPDATE customer_purchases SET " + ", ".join(update_fields) + " WHERE purchase_id = %s"
+
+            try:
+                cur = mysql.connection.cursor()
+                cur.execute(query, values)
+                mysql.connection.commit()
+                affected_rows = cur.rowcount
+                cur.close()
+                if affected_rows == 0:
+                    return jsonify({"success": False, "message": "Customer purchase not found"}), 404
+                return jsonify({"success": True, "message": "Customer purchase updated successfully"}), 200
+            except Exception as e:
+                mysql.connection.rollback()
+                return jsonify({"success": False, "message": str(e)}), 500
+
+        elif request.method == "DELETE":
+            # Delete customer purchase
+            try:
+                cur = mysql.connection.cursor()
+                cur.execute("DELETE FROM customer_purchases WHERE purchase_id = %s", (customer_purchase_id,))
+                mysql.connection.commit()
+                affected_rows = cur.rowcount
+                cur.close()
+                if affected_rows == 0:
+                    return jsonify({"success": False, "message": "Customer purchase not found"}), 404
+                return jsonify({"success": True, "message": "Customer purchase deleted successfully"}), 200
+            except Exception as e:
+                mysql.connection.rollback()
+                return jsonify({"success": False, "message": str(e)}), 500
+
+    if request.method not in ["GET"]: 
+        return modifier()
+    else:
+        cur = mysql.connection.cursor()
+        if customer_purchase_id:
+            cur.execute(f"SELECT * FROM {table_name} WHERE purchase_id = %s", (customer_purchase_id,))
+            entry = cur.fetchone()
+            cur.close()
+            if not entry:
+                return jsonify({"success": False, "message": "Customer purchase not found"}), 404
+            return jsonify({
+                "purchase_id": entry[0],
+                "product_id": entry[1],
+                "date_of_purchase": entry[2],
+                "other_purchase_details": entry[3],
+                "customer_id": entry[4]
+            }), 200
+        else:
+            cur.execute(f"SELECT * FROM {table_name}")
+            entries = cur.fetchall()
+            columns = [col[0] for col in cur.description]
+            cur.close()
+            return jsonify([dict(zip(columns, entry)) for entry in entries]), 200
+
 
 # --------------- PRODUCTS --------------- (NORM)
 @app.route("/products", methods=["GET", "POST"])
 @app.route("/products/<int:product_id>", methods=["GET", "POST", "PUT", "DELETE"])
 def products(product_id=None):
-    table_name = "products_norm"
+    table_name = "products"
 
+    # Use another method what changes of source code from above, so i put it different ~ @aceday
+    
     cur = mysql.connection.cursor()
 
     if request.method == "GET":
@@ -351,9 +473,8 @@ def products(product_id=None):
                 return jsonify({"success": False, "message": "All fields are required"}), 400
 
             try:
-                cur.execute(
-                    f"INSERT INTO {table_name} (product_name, price, product_type, product_code) VALUES (%s, %s, %s, %s)",
-                    (product_name, price, product_type, product_code),
+                cur.execute(f"INSERT INTO {table_name} (product_name, price, product_type, product_code) VALUES (%s, %s, %s, %s)",
+                            (product_name, price, product_type, product_code),
                 )
                 mysql.connection.commit()
                 return jsonify({"success": True, "message": "Product created successfully"}), 201
@@ -379,9 +500,8 @@ def products(product_id=None):
                 return jsonify({"success": False, "message": "Product not found"}), 404
 
             try:
-                cur.execute(
-                    f"UPDATE {table_name} SET product_name = %s, price = %s, product_type = %s, product_code = %s WHERE product_id = %s",
-                    (product_name, price, product_type, product_code, product_id),
+                cur.execute(f"UPDATE {table_name} SET product_name = %s, price = %s, product_type = %s, product_code = %s WHERE product_id = %s",
+                            (product_name, price, product_type, product_code, product_id),
                 )
                 mysql.connection.commit()
                 return jsonify({"success": True, "message": "Product updated successfully"}), 200
@@ -414,6 +534,7 @@ def products(product_id=None):
 
 # Users
 @app.route("/users", methods=["GET"])
+@token_required
 def get_users():
     table_name = "users"
     query = f"SELECT * FROM {table_name}"
