@@ -28,6 +28,9 @@ Game Shop backend runs with python flask, no modern just CLI in 1985
 - `{hostname}/customer_purchases` - Gets all purchases entries by customers.
 - `{hostname}/customer_purchases` - Get a detail customer purchase by specifying id number.
 
+### Register an account and Login
+- `{hostname}/register` - Register an account.
+- `{hostname}/login` - Login an account, to generate the token.
 ---
 
 ### 
@@ -35,6 +38,5 @@ Game Shop backend runs with python flask, no modern just CLI in 1985
 ### Modify the entry
 - `POST, PUT and DELETE` - Require login, so go to the `/register`.
 
-### Register an account
-- ``
+
 
