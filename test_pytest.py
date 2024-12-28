@@ -1,6 +1,8 @@
 import pytest, os, sys, flask, time
 from app import app, mysql
 from faker import Faker
+from pyc import admin_user, admin_passwd, admin_id
+import jwt
 os.system('clear' if os.name == 'posix' else 'cls')
 print("Make sure edit first the variable HOST at line 55 before test :)")
 time.sleep(2)
@@ -475,6 +477,46 @@ def test_customer_purchases_delete():
         print(f"Purchase ID: {purchase_last_id}")
     assert response.status_code == 200
 
+# User access security
+def test_user_get_access_fail():
+    response = client.post('/login',
+                            headers={
+                                'Content-Type': 'application/json'},
+                                json={
+                                    'username': 'marc2',
+                                    'password': 'marc2'
+                                })
+    get_token = response.json["token"]
+    # decoded_token = jwt.decode(get_token, app.config['SECRET_KEY'], algorithms=['HS256'])
+    # if DEBUG:
+    #     print(response)
+    # Fetch itself
+    response = client.get('/users',
+                            headers={
+                                'Authorization' : f'Bearer {get_token}',
+                            })
 
+    if DEBUG:
+        print(f"Error: {response.status_code}, {response.get_data(as_text=True)} , {get_token}")
+    assert response.status_code == 403
+
+def test_user_get_access_success():
+    response = client.post('/login',
+                            headers={
+                                'Content-Type': 'application/json'},
+                                json={
+                                    'username': admin_user,
+                                    'password': admin_passwd
+                                })
+    get_token = response.json["token"]
+
+    response = client.get('/users',
+                            headers={
+                                'Authorization' : f'Bearer {get_token}',
+                            })
+
+    if DEBUG:
+        print(f"Error: {response.status_code}, {response.get_data(as_text=True)} , {get_token}")
+    assert response.status_code == 200
 if __name__ == '__main__':
     pytest.main()

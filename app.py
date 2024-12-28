@@ -19,26 +19,28 @@ app.config["SECRET_KEY"] = mysql_sk
 mysql = MySQL(app)
 auth = HTTPBasicAuth()
 
-def is_admin(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user_id = request.headers.get('user')
+# def is_admin(f):
+#     @wraps(f)
+#     def decorated_function(*args, **kwargs):
+#         username = request.headers.get('username')
         
-        if not user_id:
-            return jsonify({"message":"User ID is missing",
-                            "user_id" : user_id}), 400
-        cur = mysql.connection.cursor()
-        cur.execute("SELECT role_name FROM users WHERE user_id = %s", (user_id,))
-        if_admin = cur.fetchone()
-        print(if_admin)
-        if if_admin and if_admin[0] == 'admin':
-            return f(*args, **kwargs)
-        else:
-            return jsonify({"message": "Admin access required",
-                            "user_id" : user_id,
-                            "data" : if_admin}), 403
+#         if not username:
+#             return jsonify({"message":"Username is missing",
+#                             # "username" : username
+#                             }), 400
+#         cur = mysql.connection.cursor()
+#         cur.execute("SELECT role_name FROM users WHERE username = %s", (username,))
+#         if_admin = cur.fetchone()
+#         print(if_admin)
+#         if if_admin and if_admin[0] == 'admin':
+#             return f(*args, **kwargs)
+#         else:
+#             return jsonify({"message": "Admin access required",
+#                             # "username" : username,
+#                             # "data" : if_admin
+#                             }), 403
 
-    return decorated_function
+#     return decorated_function
 
 def token_required(f):
     @wraps(f)
@@ -557,15 +559,27 @@ def products(product_id=None):
 # Users
 @app.route("/users", methods=["GET"])
 @token_required
-@is_admin
+# @is_admin
 def get_users():
     table_name = "users"
-    query = f"SELECT * FROM {table_name}"
+
+    decode_token = jwt.decode(request.headers.get("Authorization").split(" ")[1], app.config["SECRET_KEY"], algorithms=["HS256"])
+    username = decode_token["username"]
+
+    query = f"SELECT role_name FROM {table_name} WHERE username = '{username}'"
     cur = mysql.connection.cursor()
-
     cur.execute(query)
-    entries = cur.fetchall()
+    is_admin = cur.fetchone()
 
+
+    if is_admin[0] != 'admin':
+        return jsonify({"message": "Admin access required",
+                        "success": False,
+                        # "username" : username,
+                        }), 403
+
+    cur.execute(f"SELECT * FROM {table_name}")
+    entries = cur.fetchall()
     users = []
 
     for entry in entries:
@@ -573,7 +587,7 @@ def get_users():
             'user_id': entry[0],
             'username': entry[1],
             'passwd': entry[2],
-            # 'token_id': entry[3],     # Debug purposes
+            # 'token_id': entry[3],     # Security purposes
             'role_id': entry[4]
         }
         users.append(user)
