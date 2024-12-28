@@ -4,16 +4,17 @@ from flask_httpauth import HTTPBasicAuth
 import jwt, datetime , json
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+from pyc import *
 
 # PROGRAM:: REQUIREMENTS 
 
 app = Flask(__name__)
 
-app.config["MYSQL_HOST"] = "192.168.1.150"
-app.config["MYSQL_USER"] = "root"
-app.config["MYSQL_PASSWORD"] = "root"
-app.config["MYSQL_DB"] = "gameshop"
-app.config["SECRET_KEY"] = "marc123"
+app.config["MYSQL_HOST"] = mysql_host
+app.config["MYSQL_USER"] = mysql_user
+app.config["MYSQL_PASSWORD"] = mysql_passwd
+app.config["MYSQL_DB"] = mysql_db
+app.config["SECRET_KEY"] = mysql_sk
 
 mysql = MySQL(app)
 auth = HTTPBasicAuth()
